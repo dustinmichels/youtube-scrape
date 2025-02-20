@@ -4,7 +4,6 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
@@ -13,7 +12,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 def get_video_links(channel_url, scroll_pause_time=2, max_scrolls=30):
-    """Extracts all video links from a YouTube channel using Selenium."""
+    """Extracts all video links and titles from a YouTube channel using Selenium."""
 
     # Set up Chrome options
     chrome_options = Options()
@@ -31,8 +30,9 @@ def get_video_links(channel_url, scroll_pause_time=2, max_scrolls=30):
     if "/videos" not in channel_url:
         channel_url = channel_url.rstrip("/") + "/videos"
 
+    # Open the channel URL and wait for page to load
     driver.get(channel_url)
-    time.sleep(1)  # Wait for page to load
+    time.sleep(1)
 
     # Wait and click the "Accept all" button if it appears
     try:
@@ -49,14 +49,12 @@ def get_video_links(channel_url, scroll_pause_time=2, max_scrolls=30):
     # Continue with the rest of the script
     print("Current URL after consent:", driver.current_url)
 
-    print("Current URL:", driver.current_url)
-    print("Page Title:", driver.title)
-
     # Scroll to load all videos
     scroll_count = 0
     last_height = driver.execute_script("return document.documentElement.scrollHeight")
 
     while scroll_count < max_scrolls:
+        print("scrolling...")
         driver.find_element(By.TAG_NAME, "body").send_keys(Keys.END)
         time.sleep(scroll_pause_time)
         new_height = driver.execute_script(
@@ -68,32 +66,29 @@ def get_video_links(channel_url, scroll_pause_time=2, max_scrolls=30):
         last_height = new_height
         scroll_count += 1
 
-    all_links = [
-        a.get_attribute("href") for a in driver.find_elements(By.TAG_NAME, "a")
-    ]
-    print(all_links)  # Debugging: See all links found
-
-    # Extract video links
+    # Extract video links and titles
     video_elements = driver.find_elements(By.XPATH, '//*[@id="video-title-link"]')
-    video_links = [
-        element.get_attribute("href")
+    videos = [
+        {"title": element.get_attribute("title"), "url": element.get_attribute("href")}
         for element in video_elements
         if element.get_attribute("href")
     ]
 
     driver.quit()  # Close browser
 
-    return list(set(video_links))  # Remove duplicates
+    return videos  # Return list of dictionaries with titles and URLs
 
 
-# Define channel URL
-channel_url = "https://www.youtube.com/@JoshuaWeissman"
+if __name__ == "__main__":
 
-# Get video URLs
-video_urls = get_video_links(channel_url)
+    # Define channel URL
+    channel_url = "https://www.youtube.com/@JoshuaWeissman"
 
-# Save results to CSV
-df = pd.DataFrame(video_urls, columns=["Video URL"])
-df.to_csv("youtube_videos.csv", index=False)
+    # Get video URLs and titles
+    videos = get_video_links(channel_url)
 
-print(f"Extracted {len(video_urls)} video URLs. Saved to youtube_videos.csv")
+    # Save results to CSV
+    df = pd.DataFrame(videos)
+    df.to_csv("output/youtube_videos.csv", index=False)
+
+    print(f"Extracted {len(videos)} videos. Saved to youtube_videos.csv")
